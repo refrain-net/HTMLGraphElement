@@ -1,6 +1,6 @@
 'use strict';
 
-import HTMLGraphElement from './HTMLGraphElement.js';
+import {HTMLGraphElement} from './HTMLGraphElement.js';
 
 const graph = document.querySelector('#graph');
 const rangeX = 10;
