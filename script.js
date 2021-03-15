@@ -3,8 +3,8 @@
 import HTMLGraphElement from './HTMLGraphElement.js';
 
 const graph = document.querySelector('#graph');
-const rangeX = 100000;
-const rangeY = 100;
+const rangeX = 10;
+const rangeY = 10;
 
 console.time('render');
 

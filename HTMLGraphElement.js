@@ -1,5 +1,5 @@
 'use strict';
-export default class HTMLGraphElement extends HTMLCanvasElement {
+export class HTMLGraphElement extends HTMLCanvasElement {
   static #vertexShaderSource = 'precision mediump float;' + 
                                '' +
                                'attribute vec4 aVertexColor;' +
@@ -19,6 +19,7 @@ export default class HTMLGraphElement extends HTMLCanvasElement {
                                  '  gl_FragColor = vColor;' +
                                  '}';
 
+  #autoClear = false;
   #autoRender = false;
   #elements = [];
   #gl = null;
@@ -34,6 +35,8 @@ export default class HTMLGraphElement extends HTMLCanvasElement {
   static get ORIGIN_BOTTOM () { return 0x0008; }
   static get ORIGIN_CENTER () { return 0x0010; }
   static get observedAttributes () {}
+
+  get programInfo () { return this.#programInfo; }
 
   constructor () {
     super();
@@ -62,8 +65,16 @@ export default class HTMLGraphElement extends HTMLCanvasElement {
     data = data.slice();
     this.#elements.push({color, data});
     if (this.#autoRender) this.render();
+    return this.#elements.length - 1;
+  }
+  removeElement (index) {
+    this.#elements.splice(index, 1);
+    if (this.#autoRender) this.render();
   }
 
+  setAutoClear (autoClear) {
+    this.#autoClear = autoClear;
+  }
   setAutoRender (autoRender) {
     this.#autoRender = autoRender;
   }
@@ -90,29 +101,39 @@ export default class HTMLGraphElement extends HTMLCanvasElement {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.viewport(0, 0, width, height);
   }
+  draw (gl, array) {
+    const {attribute: {vertexColor, vertexPosition}} = this.#programInfo;
+    const buffer = this.createBuffer(gl, gl.ARRAY_BUFFER, new Float32Array(array));
+    const vertexLength = 2; // vec2(x, y)
+    const colorLength = 4;  // vec4(r, g, b, a)
+    const stride = (vertexLength + colorLength) * Float32Array.BYTES_PER_ELEMENT;
+    const positionOffset = 0;
+    const colorOffset = vertexLength * Float32Array.BYTES_PER_ELEMENT;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.enableVertexAttribArray(vertexColor);
+    gl.enableVertexAttribArray(vertexPosition);
+    gl.vertexAttribPointer(vertexColor, colorLength, gl.FLOAT, false, stride, colorOffset);
+    gl.vertexAttribPointer(vertexPosition, vertexLength, gl.FLOAT, false, stride, positionOffset);
+    gl.drawArrays(gl.LINE_STRIP, 0, array.length / (vertexLength + colorLength));
+    gl.disableVertexAttribArray(vertexColor);
+    gl.disableVertexAttribArray(vertexPosition);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.flush();
+  }
   render () {
-    this.clear();
+    if (this.#autoClear) this.clear();
     const gl = this.#gl;
     const {attribute: {vertexColor, vertexPosition}} = this.#programInfo;
     const originX = this.#originX;
     const originY = this.#originY;
     const rangeX = this.#rangeX;
     const rangeY = this.#rangeY;
-    let buffer;
-    this.#elements.forEach(({color: [r, g, b, a], data}) => {
-      gl.vertexAttrib4fv(vertexColor, [r, g, b, a]);
-      data = data.map((currentValue, index) => {
-        if (index % 2 === 0) return currentValue * (originX === 0 ? 1 : 2) / rangeX + originX;
-        else return currentValue * (originY === 0 ? 1 : 2) / rangeY + originY;
-      }).filter((currentValue, index, array) => Math.abs(array[index - index % 2]) <= 1);
-      buffer = this.createBuffer(gl, gl.ARRAY_BUFFER, new Float32Array(data));
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.enableVertexAttribArray(vertexPosition);
-      gl.vertexAttribPointer(vertexPosition, 2, gl.FLOAT, false, 0, 0);
-      gl.drawArrays(gl.LINE_STRIP, 0, data.length / 2);
-      gl.disableVertexAttribArray(vertexPosition);
-      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    this.#elements.forEach(({color, data}) => {
+      data = data.map((currentValue, index) => index % 2 === 0 ? currentValue * (originX === 0 ? 1 : 2) / rangeX + originX : currentValue * (originY === 0 ? 1 : 2) / rangeY + originY).filter((currentValue, index, array) => Math.abs(array[index - index % 2]) <= 1).reduce((accumulator, currentValue, index) => accumulator.concat(index % 2 === 0 ? currentValue : [currentValue].concat(color)), []);
+      this.draw(gl, data);
     });
+    this.draw(gl, [originX, -1, 0, 0, 0, 1, originX, 1, 0, 0, 0, 1]);
+    this.draw(gl, [-1, originY, 0, 0, 0, 1, 1, originY, 0, 0, 0, 1]);
   }
 
   createBuffer (gl, type, data) {
