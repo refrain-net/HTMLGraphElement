@@ -15,7 +15,7 @@ graph.setRangeY(0, rangeY);
 graph.setRange(20, 10);
 
 const data = [];
-for (let i = 0; i <= rangeX; i ++) {
+for (let i = 0; i <= rangeX * 100; i += 0.01) {
   data.push(i);
   data.push(Math.random() * rangeY);
 }
