@@ -1,24 +1,65 @@
 'use strict';
 
-// import {HTMLGraphElement} from './HTMLGraphElement.js';
+Array.prototype.transpose = function () {
+  const array = [...this];
+  array.forEach((column, columnIndex) => column.forEach((row, rowIndex) => (this[rowIndex] = this[rowIndex] || []).push(row)));
+  return this;
+};
 
 const graph = document.querySelector('#graph');
-const rangeX = 10;
-const rangeY = 10;
+const render = document.querySelector('#render');
+const elements = [];
 
-console.time('render');
+document.addEventListener('dragover', event => {
+  event.stopPropagation();
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+}, false);
 
-graph.setAutoRender(true);
-graph.setOrigin(0b1001);
-graph.setRangeX(0, rangeX);
-graph.setRangeY(0, rangeY);
-graph.setRange(20, 10);
+document.addEventListener('drop', event => {
+  const {dataTransfer: {files: [file]}} = event;
 
-const data = [];
-for (let i = 0; i <= rangeX * 100; i += 0.01) {
-  data.push(i);
-  data.push(Math.random() * rangeY);
+  if (file === undefined) return;
+
+  event.stopPropagation();
+  event.preventDefault();
+
+  load(file);
+}, false);
+
+render.addEventListener('click', event => {
+  graph.autoClear = false;
+  graph.clear();
+
+  [...document.querySelectorAll('#checks input[type = "checkbox"]')].map(({checked}, index) => ({checked, index})).filter(({checked}) => checked).forEach(({index}) => graph.render([index]));
+}, false);
+
+function load (file) {
+  const reader = new FileReader();
+  reader.addEventListener('load', event => {
+    const {result} = reader;
+
+    const arr = result.replace(/\r/g, '').split('\n').filter(line => line !== '').map(line => line.split(','));
+
+    const createFormItem = name => `<input name = '${name}' type = 'checkbox' /><label for = '${name}'>${name}</label>`;
+    checks.innerHTML = arr[0].reduce((html, name) => html + createFormItem(name), '');
+
+    arr.transpose();
+
+    graph.setOrigin(HTMLGraphElement.ORIGIN_LEFT | HTMLGraphElement.ORIGIN_BOTTOM);
+    graph.setRangeX(0, arr.length);
+    graph.setRangeY(0, 5);
+
+    const colors = [
+      [255, 0, 0, 255],
+      [0, 255, 0, 255],
+      [0, 0, 255, 255],
+      [255, 255, 0, 255],
+      [0, 255, 255, 255],
+      [255, 0, 255, 255]
+    ];
+
+    for (const [index, data] of arr.entries()) graph.addElement({color: colors[index % colors.length], data});
+  }, false);
+  reader.readAsText(file, 'Shift-JIS');
 }
-graph.addElement({color: [255, 0, 0, 255], data});
-
-console.timeEnd('render');
